@@ -476,7 +476,32 @@ async function updateTotals(){
 
 function openLogin(){document.getElementById('loginModal').classList.remove('hidden');}
 function closeLogin(){document.getElementById('loginModal').classList.add('hidden');}
-function checkLogin(){if(document.getElementById('adminPass').value==="mansa1812"){loggedIn=true;closeLogin();document.getElementById('loginBtn').classList.add('hidden');document.getElementById('logoutBtn').classList.remove('hidden');loadFloor(); showMessage("Admin logged in successfully!", false);document.getElementById('adminPass').value = "";}else showMessage("Wrong password", true);}
+async function checkLogin() {
+  const passwordInput = document.getElementById('adminPass').value;
+  
+  // This calls the SQL function you created in the Supabase dashboard
+  const { data: isValid, error } = await supabaseClient.rpc('check_admin_password', {
+    input_password: passwordInput
+  });
+
+  if (error) {
+    console.error("Login error:", error);
+    showMessage("System error during login.", true);
+    return;
+  }
+
+  if (isValid) {
+    loggedIn = true;
+    closeLogin();
+    document.getElementById('loginBtn').classList.add('hidden');
+    document.getElementById('logoutBtn').classList.remove('hidden');
+    loadFloor(); 
+    showMessage("Admin logged in successfully!", false);
+    document.getElementById('adminPass').value = "";
+  } else {
+    showMessage("Wrong password", true);
+  }
+}
 function logout(){loggedIn=false;document.getElementById('logoutBtn').classList.add('hidden');document.getElementById('loginBtn').classList.remove('hidden');loadFloor(); showMessage("Logged out.", false);}
 
 // --- PDF EXPORT FUNCTION ---
