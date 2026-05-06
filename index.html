@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Society Maintenance Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* Base Styles */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  background: #f7f8fc; /* Soft background */
+}
+/* General Button Styling for consistent look */
+button:not([id*="loginBtn"], [id*="logoutBtn"], [id*="PayBtn"], [id*="Select"], [id*="exportPDF"], [id*="AnalyticsBtn"], [id*="galleryBtn"]) {
+  /* This targets the flat buttons in the list */
+  transition: background-color 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+button:hover:not(:disabled) {
+  opacity: 1; /* Ensure hover opacity is not lower than normal */
+  transform: translateY(-2px); /* Lift effect on hover */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.receipt-pdf {
+    display: none; /* Hidden container for PDF generation */
+    padding: 20px;
+    background-color: white;
+    font-family: sans-serif;
+    border: 1px solid #000;
+}
+
+/* Fix for mobile: Ensure the main content card fills the screen width */
+.main-card-container {
+    width: 100%;
+    max-width: 600px; /* Adjusted max width for better desktop visibility */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Mobile specific grid adjustments for flat buttons */
+@media (max-width: 400px) {
+  #flatsContainer {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* 2 columns on very small screens */
+  }
+}
+</style>
+
+</head>
+<body class="bg-indigo-50 min-h-screen flex flex-col">
+
+<div id="messageToast" class="fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white bg-red-500 z-50 hidden transition-opacity duration-300"></div>
+
+<div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+  <div class="bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-xs">
+    <h2 class="text-xl font-extrabold mb-4 text-center text-blue-700">Admin Login</h2>
+    <input id="adminPass" type="password" placeholder="Enter Password" class="w-full p-3 border border-gray-300 rounded-lg mb-4 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+    <button onclick="checkLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold shadow-md">Login</button>
+    <button onclick="closeLogin()" class="w-full mt-3 bg-gray-400 hover:bg-gray-500 text-white p-3 rounded-lg font-bold">Cancel</button>
+  </div>
+</div>
+
+<div id="paymentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-40">
+  <div class="bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-sm">
+    <h2 id="paymentModalTitle" class="text-xl font-extrabold mb-4 text-center text-green-700">Pay Maintenance</h2>
+    
+    <div id="paymentForm">
+        <input id="payName" type="text" placeholder="Your Name" class="w-full p-3 border border-gray-300 rounded-lg mb-3 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <input id="payFlatNo" type="text" placeholder="Flat No. (e.g., 1812, G05, A101)" class="w-full p-3 border border-gray-300 rounded-lg mb-3 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <input id="payFloorNo" type="number" placeholder="Floor No. (e.g., 18, 0)" class="w-full p-3 border border-gray-300 rounded-lg mb-3 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+        <div class="flex items-center bg-green-50 p-3 rounded-lg mb-4 shadow-inner">
+            <span class="font-semibold text-gray-700 mr-2">Amount Due:</span>
+            <span id="payAmount" class="text-xl font-extrabold text-green-700">₹100</span>
+        </div>
+        
+        <button id="cashPayBtn" onclick="handlePaymentSelection('cash')" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white p-3 rounded-lg font-bold shadow-md transition duration-150 hidden">
+            Generate Cash Receipt
+        </button>
+        <button id="upiPayBtn" onclick="handlePaymentSelection('upi')" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold shadow-md transition duration-150 hidden">
+            Pay ₹100 via UPI
+        </button>
+    </div>
+
+    <div id="upiConfirmation" class="hidden text-center">
+        <p class="text-lg font-semibold text-gray-700 mb-4 bg-yellow-100 p-3 rounded-lg">
+            Payment link opened! Please complete the transaction on your app.
+        </p>
+        <button 
+            id="whatsappNotifyBtn" 
+            onclick="redirectToWhatsApp()" 
+            disabled 
+            class="w-full bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg font-bold shadow-lg opacity-50 cursor-not-allowed transition duration-150">
+            (Wait 10 seconds...)
+        </button>
+    </div>
+
+    <button onclick="closePaymentModal()" class="w-full mt-4 bg-gray-400 hover:bg-gray-500 text-white p-3 rounded-lg font-bold">Cancel</button>
+  </div>
+</div>
+
+<div id="galleryModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center pt-8 hidden z-50 overflow-y-auto">
+  <div class="bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-lg my-12">
+    <div class="flex justify-between items-center mb-4 border-b pb-2">
+        <h2 class="text-xl font-extrabold text-blue-700">Society Gallery / सोसाइटी गैलरी</h2>
+        <button onclick="closeGallery()" class="text-gray-500 hover:text-gray-900 text-2xl font-bold">&times;</button>
+    </div>
+    
+    <div id="adminUploadArea" class="mb-4 hidden">
+        <button onclick="openMediaUpload()" class="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg font-bold shadow-md transition duration-150">
+            + Upload Photo/Video (Admin Only) / नया मीडिया जोड़ें
+        </button>
+        <p class="text-xs text-center text-red-700 mt-1">Click the button above to upload media.</p>
+    </div>
+
+    <div id="galleryContent" class="grid grid-cols-1 gap-4">
+        </div>
+    
+    <button onclick="closeGallery()" class="w-full mt-6 bg-gray-400 hover:bg-gray-500 text-white p-3 rounded-lg font-bold">Close / बंद करें</button>
+  </div>
+</div>
+<div id="mediaUploadModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+  <div class="bg-white p-6 rounded-xl shadow-2xl w-11/12 max-w-sm">
+    <h2 class="text-xl font-extrabold mb-4 text-center text-red-700">Upload Gallery Media (Admin)</h2>
+    
+    <label class="block text-sm font-bold text-gray-700 mb-1">Select Media File (Photo/Video):</label>
+    <div class="relative mb-3">
+        <input type="file" id="mediaFileInput" accept="image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+        <button class="w-full bg-indigo-500 hover:bg-indigo-600 text-white p-3 rounded-lg font-bold transition duration-150 shadow-md pointer-events-none">
+            <span id="fileNameDisplay">Choose File...</span>
+        </button>
+    </div>
+    
+    <label class="block text-sm font-bold text-gray-700 mb-1">Description (English/Hindi):</label>
+    <input id="mediaDescInput" type="text" placeholder="Short description of the event" class="w-full p-3 border border-gray-300 rounded-lg mb-4 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+
+    <button onclick="saveMedia()" id="uploadMediaBtn" class="w-full bg-red-600 hover:bg-red-700 text-white p-3 rounded-lg font-bold shadow-md transition duration-150">Upload Media</button>
+    <button onclick="closeMediaUpload()" class="w-full mt-3 bg-gray-400 hover:bg-gray-500 text-white p-3 rounded-lg font-bold">Cancel</button>
+    <p class="text-xs text-center text-red-700 mt-2">Uploading large videos may take time.</p>
+  </div>
+</div>
+<div class="main-card-container mx-auto my-0 sm:my-6 bg-white rounded-none sm:rounded-xl shadow-2xl overflow-hidden min-h-screen sm:min-h-0">
+
+<header class="bg-gradient-to-r from-blue-700 to-indigo-600 text-white p-5 text-center shadow-lg flex items-center justify-center gap-3">
+  <img src="e3.png" alt="E3 Logo" class="h-10 w-10 rounded-full border-2 border-white shadow-md">
+  <div>
+    <h1 class="text-2xl font-extrabold tracking-wide">Mansa Devi Apartments</h1>
+    <p class="text-sm opacity-90">Maintenance Portal / प्रशासन</p>
+  </div>
+</header>
+
+<!-- New Block Selector -->
+<div class="p-4 border-b border-gray-100 bg-white">
+  <label class="font-semibold text-gray-700 block mb-1">Select Block / ब्लॉक चुनें:</label>
+  <select id="blockSelect" class="w-full p-3 border border-gray-300 rounded-lg text-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" onchange="changeBlock()">
+    <option value="E3">E-3</option>
+    <option value="A">A</option>
+    <option value="B">B</option>
+    <option value="C">C</option>
+    <option value="D">D</option>
+    <option value="E1">E-1</option>
+    <option value="E2">E-2</option>
+    <option value="E4">E-4</option>
+  </select>
+</div>
+
+<div class="p-4 border-b border-gray-100">
+    <button onclick="openPaymentModal(true)" class="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white px-4 py-4 rounded-xl font-extrabold text-lg shadow-lg transition duration-300 transform hover:scale-[1.01]">
+        Pay Maintenance / भुगतान करें
+    </button>
+</div>
+
+<div class="p-4 pt-0 border-b border-gray-100">
+  <button id="AnalyticsBtn" onclick="showMonthlyAnalytics()" class="bg-purple-600 hover:bg-purple-700 text-white w-full px-4 py-3 rounded-lg font-bold shadow-md transition duration-150">Monthly Analytics / मासिक विश्लेषण</button>
+</div>
+
+<div class="p-4 pt-0 border-b border-gray-100">
+  <button id="galleryBtn" onclick="openGallery()" class="bg-yellow-600 hover:bg-yellow-700 text-white w-full px-4 py-3 rounded-lg font-bold shadow-md transition duration-150">
+      Gallery / गैलरी
+  </button>
+</div>
+<div class="p-4 flex justify-between items-center gap-2 flex-wrap border-b border-gray-100">
+  <div class="flex gap-2">
+    <button onclick="openLogin()" id="loginBtn" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm shadow-md">Admin Login</button>
+    <button onclick="logout()" id="logoutBtn" class="hidden bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm shadow-md">Logout</button>
+  </div>
+  <div>
+    <label class="font-semibold text-gray-700">Month:</label>
+    <select id="monthSelect" class="p-2 border border-gray-300 rounded-lg shadow-sm" onchange="resetPayments()"></select>
+  </div>
+</div>
+
+<div class="p-4 bg-indigo-50 text-xl font-extrabold text-blue-800 text-center border-b border-gray-200 shadow-inner">
+  Total Collection This Month: ₹<span id="totalCollection">0</span>
+</div>
+
+<div class="p-4 flex justify-between items-center flex-wrap gap-3 border-b border-gray-100">
+  <div>
+    <label class="font-semibold mb-1 block text-gray-700">Select Floor:</label>
+    <select id="floorSelect" class="p-3 border border-gray-300 rounded-lg text-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" onchange="loadFloor()"></select>
+  </div>
+  <button onclick="exportPDF()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold shadow-md transition duration-150">Export PDF Report</button>
+</div>
+
+<div class="grid grid-cols-2 gap-4 px-4 py-4 border-b border-gray-100">
+  <div class="bg-white border border-green-300 p-4 rounded-xl text-center shadow-lg">
+    <div class="font-bold text-lg text-green-700">Paid / जमा</div>
+    <span id="paidCount" class="text-3xl font-extrabold text-green-600">0</span>
+  </div>
+  <div class="bg-white border border-red-300 p-4 rounded-xl text-center shadow-lg">
+    <div class="font-bold text-lg text-red-700">Pending / बाकी</div>
+    <span id="pendingCount" class="text-3xl font-extrabold text-red-600">0</span>
+  </div>
+</div>
+
+<div class="p-4 text-center font-bold text-lg text-purple-700 bg-purple-50 shadow-inner">
+  Floor Total Collected: ₹<span id="floorTotal">0</span>
+</div>
+
+<div id="flatsContainer" class="grid grid-cols-3 gap-3 p-4 pb-12"></div>
+
+</div> 
+<div id="receiptContainer" class="receipt-pdf">
+    <h1 class="text-3xl font-bold text-center mb-6 text-blue-800 border-b-2 pb-2">Maintenance Cash Receipt</h1>
+    <div class="mb-6 text-base bg-gray-50 p-3 rounded-lg shadow-inner">
+        <p><strong>Date:</strong> <span id="receiptDate"></span></p>
+        <p><strong>Receipt ID:</strong> <span id="receiptID"></span></p>
+    </div>
+    
+    <div class="grid grid-cols-2 gap-4 mb-8">
+        <p class="border-b pb-1"><strong>Name:</strong> <span id="receiptName" class="font-semibold"></span></p>
+        <p class="border-b pb-1"><strong>Amount:</strong> <span id="receiptAmount" class="font-extrabold text-red-600">₹</span></p>
+        <p class="border-b pb-1"><strong>Flat No:</strong> <span id="receiptFlat" class="font-semibold"></span></p>
+        <p class="border-b pb-1"><strong>Floor No:</strong> <span id="receiptFloor" class="font-semibold"></span></p>
+        <p class="border-b pb-1 col-span-2"><strong>Block:</strong> <span id="receiptBlock" class="font-semibold"></span></p>
+    </div>
+    
+    <h2 class="text-xl font-bold mt-6 mb-2 border-t pt-4">Payment Instructions (CASH)</h2>
+    <p class="text-red-600 font-semibold text-lg">
+        Please deposit this cash amount at the following destination:
+    </p>
+    <p class="text-2xl font-extrabold text-blue-700 mt-2 p-3 bg-blue-100 rounded-lg">
+        Flat No. 1812 E3
+    </p>
+    
+    <div class="mt-8 text-center border-t pt-4">
+        <p class="text-sm">Thank you for your timely payment.</p>
+        <p class="mt-2 text-xl font-extrabold text-blue-900">Mansa Devi Apartments</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// --- Configuration & Constants ---
+const SUPABASE_URL = "https://oshwfwuwfnkltmlvalqf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-rGsnVAZ5QCsr3Pp5kNr5A_8hTPnH-d";
+const UPI_ID = "43933805949@sbi"; // !!! REPLACE WITH YOUR ACTUAL UPI ID !!!
+const WHATSAPP_LINK = "https://chat.whatsapp.com/Jdr5nVIqp5R1Fvolg0UGHf?mode=wwt"; // !!! REPLACE WITH YOUR ACTUAL WHATSAPP INVITE LINK !!!
+const UPI_PAYEE_NAME = "Mansa Devi Maint.";
+
+// RENAME 'supabase' to 'supabaseClient' to avoid collision with the global library object
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentBlock = "E3";
+let loggedIn = false;
+
+// Block Configurations
+const blockConfig = {
+  "A": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "A" },
+  "B": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "B" },
+  "C": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "C" },
+  "D": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "D" },
+  "E1": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E1" },
+  "E2": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E2" },
+  "E3": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E3" },
+  "E4": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E4", specialFlats: {0:16, 1:16} }
+};
+
+// --- MAINTENANCE DATA STORE (Unchanged structure - uses localStorage) ---
+let data = JSON.parse(localStorage.getItem("maintenanceData")) || {};
+function saveData(){ localStorage.setItem("maintenanceData", JSON.stringify(data)); }
+// --- END MAINTENANCE DATA STORE ---
+
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const monthSelect=document.getElementById('monthSelect');
+months.forEach(m=>{let o=document.createElement('option');o.value=m;o.textContent=m;monthSelect.appendChild(o);});
+
+const floorSelect=document.getElementById('floorSelect');
+const blockSelect = document.getElementById('blockSelect');
+
+// ---------- Message/Toast Functions ----------
+const messageToast = document.getElementById('messageToast');
+
+function showMessage(msg, isError = true) {
+    messageToast.textContent = msg;
+    messageToast.classList.remove('hidden');
+    messageToast.classList.toggle('bg-red-500', isError);
+    messageToast.classList.toggle('bg-green-500', !isError);
+    setTimeout(() => {
+        messageToast.classList.add('hidden');
+    }, 3000);
+}
+
+// ---------- Supabase DB helpers ----------
+async function loadFromDB(month) {
+  const { data: rows, error } = await supabaseClient
+    .from('payments')
+    .select('*')
+    .eq('month', month);
+
+  if (error) {
+    console.error("Supabase load error:", error);
+    return;
+  }
+
+  data[month] = data[month] || {};
+  rows.forEach(r => {
+    const key = `${r.block || 'E3'}_${r.flat}`;
+    data[month][key] = Number(r.count) || 0;
+  });
+}
+
+async function saveToDB(flat, month, count, floor, block) {
+  const payload = { 
+    flat: String(flat), 
+    month: String(month), 
+    floor: Number(floor), 
+    block: String(block),
+    count: Number(count) 
+  };
+
+  const { error } = await supabaseClient
+    .from('payments')
+    .upsert(payload, { onConflict: ['flat','month','floor','block'] });
+
+  if (error) console.error("Supabase save error:", error);
+}
+// ---------- end DB helpers ----------
+
+function getFlatKey(flat, block) {
+  return `${block}_${flat}`;
+}
+
+function generateFloorOptions() {
+  floorSelect.innerHTML = '';
+  const config = blockConfig[currentBlock];
+  
+  if (config.ground) {
+    let g = document.createElement('option');
+    g.value = 0;
+    g.textContent = "Ground";
+    floorSelect.appendChild(g);
+  }
+  
+  const startFloor = config.ground ? 1 : 1;
+  const maxFloor = config.floors;
+  
+  for(let f = startFloor; f <= maxFloor; f++){
+    let o = document.createElement('option');
+    o.value = f;
+    o.textContent = `Floor ${f}`;
+    floorSelect.appendChild(o);
+  }
+}
+
+function getFlatsPerFloor(floor) {
+  const config = blockConfig[currentBlock];
+  if (config.specialFlats && config.specialFlats[floor] !== undefined) {
+    return config.specialFlats[floor];
+  }
+  return config.flatsPerFloor;
+}
+
+async function changeBlock() {
+  currentBlock = blockSelect.value;
+  generateFloorOptions();
+  floorSelect.value = blockConfig[currentBlock].ground ? 0 : 1;
+  await resetPayments();
+}
+
+async function resetPayments(){
+  let m = monthSelect.value;
+  if(!data[m]) data[m] = {};
+  
+  await loadFromDB(m);
+  saveData();
+  loadFloor();
+  updateTotals();
+}
+
+async function loadFloor(){
+  const month = monthSelect.value;
+  const floor = parseInt(floorSelect.value);
+  const config = blockConfig[currentBlock];
+
+  await loadFromDB(month);
+
+  const flatsContainer = document.getElementById('flatsContainer');
+  flatsContainer.innerHTML = '';
+
+  const flatsThisFloor = getFlatsPerFloor(floor);
+
+  let paid = 0;
+  let floorTotal = 0;
+
+  for (let n = 1; n <= flatsThisFloor; n++) {
+    let flat;
+    if (floor === 0) {
+      flat = `G${String(n).padStart(2,'0')}`; 
+    } else {
+      flat = `${String(floor).padStart(2,'0')}${String(n).padStart(2,'0')}`;
+    }
+
+    const key = getFlatKey(flat, currentBlock);
+    const countVal = Number(data[month]?.[key] || 0);
+    const paidAmount = countVal * 100;
+    const isPaid = paidAmount > 0;
+
+    if (isPaid) { 
+      paid++; 
+      floorTotal += paidAmount; 
+    }
+
+    flatsContainer.innerHTML += `
+      <button onclick="togglePaid('${flat}')"
+        class="p-3 rounded-lg text-xs font-bold shadow-md text-white transition duration-150 transform hover:scale-[1.03] ${isPaid ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'} ${loggedIn ? '' : 'opacity-70 cursor-not-allowed'}">
+        ${currentBlock} ${flat}<br>${isPaid ? '✅ Paid ₹' + paidAmount : '❌ Pending / बाकी'}
+      </button>`;
+  }
+
+  document.getElementById('paidCount').textContent = paid;
+  document.getElementById('pendingCount').textContent = flatsThisFloor - paid;
+  document.getElementById('floorTotal').textContent = floorTotal;
+
+  updateTotals();
+}
+
+async function togglePaid(flat) {
+  if (!loggedIn) return showMessage("Login required for Admin actions.", true);
+
+  const month = monthSelect.value;
+  const floor = parseInt(floorSelect.value);
+
+  if (!data[month]) data[month] = {};
+
+  const key = getFlatKey(flat, currentBlock);
+  let current = Number(data[month][key] || 0);
+  current = current + 1;
+  if (current > 5) current = 0;
+
+  data[month][key] = current;
+  try { saveData(); } catch(e){}
+
+  await saveToDB(flat, month, current, floor, currentBlock);
+  loadFloor();
+}
+
+async function updateTotals(){
+  const month = monthSelect.value;
+  if (!data[month]) await loadFromDB(month);
+
+  let total = 0;
+  Object.keys(data[month] || {}).forEach(key => {
+    if (key.startsWith(currentBlock + "_")) {
+      total += (Number(data[month][key]) || 0) * 100;
+    }
+  });
+
+  document.getElementById('totalCollection').textContent = total;
+}
+
+function openLogin(){document.getElementById('loginModal').classList.remove('hidden');}
+function closeLogin(){document.getElementById('loginModal').classList.add('hidden');}
+function checkLogin(){if(document.getElementById('adminPass').value==="mansa1812"){loggedIn=true;closeLogin();document.getElementById('loginBtn').classList.add('hidden');document.getElementById('logoutBtn').classList.remove('hidden');loadFloor(); showMessage("Admin logged in successfully!", false);document.getElementById('adminPass').value = "";}else showMessage("Wrong password", true);}
+function logout(){loggedIn=false;document.getElementById('logoutBtn').classList.add('hidden');document.getElementById('loginBtn').classList.remove('hidden');loadFloor(); showMessage("Logged out.", false);}
+
+// --- PDF EXPORT FUNCTION ---
+async function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const month = monthSelect.value;
+    const monthData = data[month] || {};
+    
+    let totalPaidAmount = 0;
+    let paidFlats = 0;
+    const paidRecords = []; 
+    
+    Object.keys(monthData).forEach(key => {
+      if (!key.startsWith(currentBlock + "_")) return;
+      
+      const flat = key.split('_')[1];
+      const count = monthData[key] || 0;
+      const amount = count * 100;
+      
+      if (count > 0) {
+        paidFlats++;
+        totalPaidAmount += amount;
+        paidRecords.push({ flat, amount, count });
+      }
+    });
+
+    if (paidRecords.length === 0) {
+        showMessage(`No payments recorded for ${month} in Block ${currentBlock} yet.`, true);
+        return;
+    }
+
+    paidRecords.sort((a, b) => {
+      const aIsG = a.flat.startsWith('G');
+      const bIsG = b.flat.startsWith('G');
+      if (aIsG !== bIsG) return aIsG ? -1 : 1;
+      const aNum = Number(a.flat.match(/\d+/g).join(''));
+      const bNum = Number(b.flat.match(/\d+/g).join(''));
+      return aNum - bNum;
+    });
+
+    doc.setFontSize(18).setFont(undefined, 'bold');
+    doc.text(`Paid Maintenance Report - ${month} - Block ${currentBlock}`, 105, 20, { align: 'center' });
+    
+    doc.setFontSize(14).setFont(undefined, 'normal');
+    doc.text(`Total Collection: ₹${totalPaidAmount}`, 105, 30, { align: 'center' });
+    doc.setFontSize(10).setFont(undefined, 'normal');
+    doc.text(`Total Paid Flats: ${paidFlats}`, 105, 35, { align: 'center' });
+    
+    let y = 45;
+    doc.line(10, y, 200, y);
+    y += 7;
+    
+    doc.setFontSize(12).setFont(undefined, 'bold');
+    doc.text("Flat No.", 15, y);
+    doc.text("Payments", 75, y); 
+    doc.text("Status", 125, y);
+    doc.text("Amount (₹)", 185, y, { align: 'right' });
+
+    y += 3;
+    doc.line(10, y, 200, y);
+    y += 5;
+    
+    doc.setFont(undefined, 'normal');
+    paidRecords.forEach(record => {
+        doc.setFontSize(10);
+        
+        doc.text(record.flat, 15, y);
+        doc.text("Paid", 125, y);
+        doc.text(String(record.amount), 185, y, { align: 'right' });
+        doc.text(`${record.count} month${record.count > 1 ? 's' : ''}`, 75, y);
+        
+        y += 6;
+        
+        if (y > 280) {
+            doc.addPage();
+            y = 20;
+            doc.setFontSize(10).setFont(undefined, 'italic');
+            doc.text(`Paid Maintenance Report - ${month} - Block ${currentBlock} (cont.)`, 10, 10);
+            
+            y = 25;
+            doc.line(10, y, 200, y);
+            y += 7;
+            doc.setFontSize(12).setFont(undefined, 'bold');
+            doc.text("Flat No.", 15, y);
+            doc.text("Payments", 75, y);
+            doc.text("Status", 125, y);
+            doc.text("Amount (₹)", 185, y, { align: 'right' });
+            y += 3;
+            doc.line(10, y, 200, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+        }
+    });
+    
+    doc.line(10, y, 200, y);
+    doc.save(`Paid_Maintenance_Report_${month}_Block_${currentBlock}.pdf`);
+}
+
+// --- MONTHLY ANALYTICS FUNCTION ---
+async function showMonthlyAnalytics() {
+  const month = monthSelect.value;
+  await loadFromDB(month);
+
+  const monthData = data[month] || {};
+  const floorCollections = {};
+
+  Object.keys(monthData).forEach(key => {
+    if (!key.startsWith(currentBlock + "_")) return;
+    
+    const flat = key.split('_')[1];
+    const countVal = Number(monthData[key] || 0);
+    const paidAmount = countVal * 100;
+
+    let floorKey;
+    if (flat.startsWith('G')) {
+      floorKey = 'Ground Floor';
+    } else {
+      const floorNum = parseInt(flat.substring(0, 2), 10); 
+      floorKey = `Floor ${floorNum}`;
+    }
+    
+    floorCollections[floorKey] = (floorCollections[floorKey] || 0) + paidAmount;
+  });
+
+  let sortedFloors = Object.keys(floorCollections).map(key => ({
+    floor: key,
+    total: floorCollections[key]
+  }));
+  
+  sortedFloors.sort((a, b) => b.total - a.total);
+
+  let analyticsMessage = `📊 Monthly Analytics for ${month} - Block ${currentBlock}\n\n`;
+  analyticsMessage += `🏆 Best Paying Floors (Top 5):\n`;
+  
+  const topFloors = sortedFloors.slice(0, 5);
+  if (topFloors.length === 0) {
+      analyticsMessage += "No payments recorded for this month.";
+  } else {
+      topFloors.forEach((item, index) => {
+          analyticsMessage += `${index + 1}. ${item.floor}: ₹${item.total}\n`;
+      });
+  }
+
+  alert(analyticsMessage);
+}
+
+// --- GALLERY FUNCTIONS (unchanged) ---
+function getStoragePathFromUrl(fileUrl) {
+    const pathSegment = '/storage/v1/object/public/media/';
+    const index = fileUrl.indexOf(pathSegment);
+    if (index !== -1) {
+        return fileUrl.substring(index + pathSegment.length);
+    }
+    return null;
+}
+
+async function renderGallery() {
+    const galleryContent = document.getElementById('galleryContent');
+    galleryContent.innerHTML = '<p class="text-center text-gray-500 py-4">Loading media...</p>';
+
+    const { data: galleryItems, error } = await supabaseClient
+        .from('gallery_media')
+        .select('id, file_url, file_type, description')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        galleryContent.innerHTML = '<p class="text-center text-red-500 py-4">Error loading gallery: ' + error.message + '</p>';
+        return;
+    }
+    
+    galleryContent.innerHTML = '';
+    
+    if (!galleryItems || galleryItems.length === 0) {
+        galleryContent.innerHTML = '<p class="text-center text-gray-500 py-4">No media uploaded yet. / कोई मीडिया अपलोड नहीं किया गया है।</p>';
+        return;
+    }
+
+    galleryItems.forEach(item => {
+        let mediaHtml;
+        const isVideo = item.file_type.startsWith('video');
+
+        if (isVideo) {
+            mediaHtml = `
+                <video controls class="w-full h-48 object-cover rounded-lg shadow-lg">
+                    <source src="${item.file_url}" type="${item.file_type}">
+                    Your browser does not support the video tag.
+                </video>
+            `;
+        } else {
+            mediaHtml = `<img src="${item.file_url}" alt="${item.description}" class="w-full h-48 object-cover rounded-lg shadow-lg">`;
+        }
+
+        const deleteButtonHtml = loggedIn ? `
+            <button onclick="deleteMedia('${item.id}', '${item.file_url}')"
+                class="mt-3 w-full bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg text-xs font-bold shadow-md transition duration-150">
+                Remove (Admin)
+            </button>` : '';
+
+        galleryContent.innerHTML += `
+            <div class="bg-gray-100 p-3 rounded-xl shadow-md">
+                ${mediaHtml}
+                <p class="text-sm font-semibold text-center mt-2 text-gray-800">${item.description}</p>
+                ${deleteButtonHtml} </div>
+        `;
+    });
+}
+
+function openGallery() {
+    renderGallery();
+    const adminArea = document.getElementById('adminUploadArea');
+    if (loggedIn) {
+        adminArea.classList.remove('hidden');
+    } else {
+        adminArea.classList.add('hidden');
+    }
+    document.getElementById('galleryModal').classList.remove('hidden');
+}
+
+function closeGallery() {
+    document.getElementById('galleryModal').classList.add('hidden');
+}
+
+function openMediaUpload() {
+    if (!loggedIn) return showMessage("Login required for Admin actions.", true);
+    
+    document.getElementById('galleryModal').classList.add('hidden');
+    document.getElementById('mediaUploadModal').classList.remove('hidden');
+    
+    document.getElementById('mediaFileInput').value = '';
+    document.getElementById('mediaDescInput').value = '';
+    document.getElementById('fileNameDisplay').textContent = 'Choose File...';
+}
+
+function closeMediaUpload() {
+    document.getElementById('mediaUploadModal').classList.add('hidden');
+    openGallery();
+}
+
+async function saveMedia() {
+    const fileInput = document.getElementById('mediaFileInput');
+    const description = document.getElementById('mediaDescInput').value.trim();
+    const file = fileInput.files[0];
+
+    if (!file) return showMessage("Please select a file to upload.", true);
+    if (!description) return showMessage("Please enter a description.", true);
+
+    document.getElementById('uploadMediaBtn').disabled = true;
+    document.getElementById('uploadMediaBtn').textContent = "Uploading... Please Wait...";
+
+    const filePath = `${Date.now()}_${file.name}`;
+    const { data: storageData, error: storageError } = await supabaseClient.storage
+        .from('media')
+        .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+        });
+
+    if (storageError) {
+        document.getElementById('uploadMediaBtn').disabled = false;
+        document.getElementById('uploadMediaBtn').textContent = "Upload Media";
+        return showMessage("File Upload Error: " + storageError.message, true);
+    }
+    
+    const { data: urlData } = supabaseClient.storage
+        .from('media')
+        .getPublicUrl(storageData.path);
+        
+    const fileUrl = urlData.publicUrl;
+    const fileType = file.type;
+
+    const { error: dbError } = await supabaseClient
+        .from('gallery_media')
+        .insert([
+            { file_url: fileUrl, file_type: fileType, description: description }
+        ]);
+
+    document.getElementById('uploadMediaBtn').disabled = false;
+    document.getElementById('uploadMediaBtn').textContent = "Upload Media";
+    
+    if (dbError) {
+        console.error("DB Insert Error:", dbError.message);
+        return showMessage("Upload successful, but description storage failed. Contact support.", true);
+    }
+
+    closeMediaUpload(); 
+    showMessage("New Gallery item uploaded successfully!", false);
+}
+
+async function deleteMedia(mediaId, fileUrl) {
+    if (!loggedIn) return showMessage("Login required for Admin actions.", true);
+    if (!confirm("Are you sure you want to permanently delete this media file? This cannot be undone.")) return;
+
+    const storagePath = getStoragePathFromUrl(fileUrl);
+    if (!storagePath) {
+        showMessage("Error: Could not determine storage path.", true);
+        return;
+    }
+
+    showMessage("Deleting media...", false);
+
+    const { error: storageError } = await supabaseClient.storage
+        .from('media')
+        .remove([storagePath]);
+
+    const { error: dbError } = await supabaseClient
+        .from('gallery_media')
+        .delete()
+        .eq('id', mediaId);
+
+    if (dbError) {
+        showMessage("Error deleting database record: " + dbError.message, true);
+        return;
+    }
+
+    showMessage("Media successfully removed!", false);
+    renderGallery();
+}
+// --- END GALLERY FUNCTIONS ---
+
+// --- Payment Logic ---
+let selectedPaymentType = null; 
+
+function openPaymentModal(isUser=false) {
+    selectedPaymentType = null;
+    document.getElementById('paymentModal').classList.remove('hidden');
+    document.getElementById('paymentModalTitle').textContent = "Select Payment Method";
+    document.getElementById('paymentForm').classList.remove('hidden');
+    document.getElementById('upiConfirmation').classList.add('hidden');
+
+    document.getElementById('cashPayBtn').classList.remove('hidden');
+    document.getElementById('upiPayBtn').classList.remove('hidden');
+
+    document.getElementById('payName').value = '';
+    document.getElementById('payFlatNo').value = '';
+    document.getElementById('payFloorNo').value = '';
+    document.getElementById('payAmount').textContent = `₹100`;
+}
+
+function closePaymentModal() {
+    document.getElementById('paymentModal').classList.add('hidden');
+    document.getElementById('cashPayBtn').classList.add('hidden');
+    document.getElementById('upiPayBtn').classList.add('hidden');
+    document.getElementById('upiConfirmation').classList.add('hidden');
+}
+
+function handlePaymentSelection(type) {
+    selectedPaymentType = type;
+    
+    const name = document.getElementById('payName').value.trim();
+    const flat = document.getElementById('payFlatNo').value.trim();
+    const floor = document.getElementById('payFloorNo').value.trim();
+    
+    if (!name || !flat || !floor) {
+        showMessage("Please fill in your Name, Flat No., and Floor No.", true);
+        return;
+    }
+
+    document.getElementById('cashPayBtn').classList.add('hidden');
+    document.getElementById('upiPayBtn').classList.add('hidden');
+
+    if (type === 'cash') {
+        generateCashReceipt(name, flat, floor);
+    } else if (type === 'upi') {
+        handleUPIPayment(name, flat, floor);
+    }
+}
+
+function generateCashReceipt(name, flat, floor) {
+    document.getElementById('receiptName').textContent = name;
+    document.getElementById('receiptFlat').textContent = flat;
+    document.getElementById('receiptFloor').textContent = floor;
+    document.getElementById('receiptBlock').textContent = currentBlock;
+    document.getElementById('receiptAmount').textContent = 100;
+    document.getElementById('receiptDate').textContent = new Date().toLocaleDateString();
+    document.getElementById('receiptID').textContent = `CASH-${Date.now()}`;
+
+    const receiptEl = document.getElementById('receiptContainer');
+    receiptEl.style.display = 'block';
+
+    html2canvas(receiptEl, { scale: 2 }).then(canvas => {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = 210;
+        const pageHeight = 295;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            doc.addPage();
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        doc.save(`Maintenance_Cash_Receipt_${currentBlock}_${flat}.pdf`);
+        
+        receiptEl.style.display = 'none';
+        showMessage("Cash receipt downloaded! Please make payment at 1812 E3.", false);
+        closePaymentModal();
+    });
+}
+
+function handleUPIPayment(name, flat, floor) {
+    const upiUrl = new URL("upi://pay");
+    upiUrl.searchParams.set('pa', UPI_ID);
+    upiUrl.searchParams.set('pn', UPI_PAYEE_NAME);
+    upiUrl.searchParams.set('am', 100);
+    upiUrl.searchParams.set('cu', 'INR');
+    upiUrl.searchParams.set('tn', `Maint_${currentBlock}_Flat_${flat}_${monthSelect.value}`);
+
+    window.open(upiUrl.href, '_blank');
+
+    document.getElementById('paymentModalTitle').textContent = "Complete Payment";
+    document.getElementById('paymentForm').classList.add('hidden');
+    document.getElementById('upiConfirmation').classList.remove('hidden');
+
+    window.paymentDetails = { name, flat, floor, block: currentBlock };
+
+    const btn = document.getElementById('whatsappNotifyBtn');
+    const delaySeconds = 10;
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    
+    let countdown = delaySeconds;
+    btn.innerHTML = `(Wait ${countdown} seconds...)`;
+
+    const timerInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            btn.innerHTML = `(Wait ${countdown} seconds...)`;
+        } else {
+            clearInterval(timerInterval);
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.innerHTML = '✅ I have Paid! Send WhatsApp Message';
+            showMessage("The WhatsApp button is now active!", false);
+        }
+    }, 1000);
+}
+
+function redirectToWhatsApp() {
+    const { name, flat, floor, block } = window.paymentDetails;
+    const amount = 100;
+    const paymentMode = 'UPI ✅';
+    
+    const message = `Hello, I have paid my monthly maintenance.%0A%0AName: ${name}%0ABlock: ${block}%0AFlat: ${flat}%0AFloor: ${floor}%0AAmount: ₹${amount}%0APayment Mode: ${paymentMode}%0A%0APlease find the screenshot attached here.`;
+    
+    const whatsappUrl = `${WHATSAPP_LINK}&text=${message}`;
+    window.open(whatsappUrl, '_blank');
+    
+    showMessage("Redirecting to WhatsApp!", false);
+    closePaymentModal();
+    window.paymentDetails = {};
+}
+// --- End Payment Logic ---
+
+// --- Initialization Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+    const fileInput = document.getElementById('mediaFileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', (event) => {
+            const fileNameDisplay = document.getElementById('fileNameDisplay');
+            if (event.target.files.length > 0) {
+                fileNameDisplay.textContent = event.target.files[0].name;
+            } else {
+                fileNameDisplay.textContent = 'Choose File...';
+            }
+        });
+    }
+
+    // Initialize
+    monthSelect.value = months[new Date().getMonth()];
+    generateFloorOptions();
+    floorSelect.value = 0;
+    resetPayments();
+});
+</script>
+</body>
+</html>
