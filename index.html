@@ -846,7 +846,7 @@ function openPaymentModal(isUser=false) {
     document.getElementById('payName').value = '';
     document.getElementById('payFlatNo').value = '';
     document.getElementById('payFloorNo').value = '';
-    document.getElementById('payAmount').textContent = `₹100`;
+    document.getElementById('payAmount').textContent = `₹200`;
 }
 
 function closePaymentModal() {
@@ -883,7 +883,7 @@ function generateCashReceipt(name, flat, floor) {
     document.getElementById('receiptFlat').textContent = flat;
     document.getElementById('receiptFloor').textContent = floor;
     document.getElementById('receiptBlock').textContent = currentBlock;
-    document.getElementById('receiptAmount').textContent = 100;
+    document.getElementById('receiptAmount').textContent = 200;
     document.getElementById('receiptDate').textContent = new Date().toLocaleDateString();
     document.getElementById('receiptID').textContent = `CASH-${Date.now()}`;
 
