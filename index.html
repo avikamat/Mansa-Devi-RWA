@@ -199,6 +199,10 @@ button:hover:not(:disabled) {
   Total Collection This Month: ₹<span id="totalCollection">0</span>
 </div>
 
+<div class="p-4 bg-emerald-50 text-xl font-extrabold text-emerald-800 text-center border-b border-gray-200 shadow-inner">
+  Grand Total (All Blocks): ₹<span id="grandTotal">0</span>
+</div>
+
 <div class="p-4 flex justify-between items-center flex-wrap gap-3 border-b border-gray-100">
   <div>
     <label class="font-semibold mb-1 block text-gray-700">Select Floor:</label>
@@ -275,10 +279,10 @@ const blockConfig = {
   "B": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "B" },
   "C": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "C" },
   "D": { floors: 13, flatsPerFloor: 6, ground: false, prefix: "D" },
-  "E1": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E1" },
-  "E2": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E2" },
-  "E3": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E3" },
-  "E4": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E4", specialFlats: {0:16, 1:16} }
+  "E1": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E1", specialFlats: {0:16, 1:16} },
+  "E2": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E2", specialFlats: {0:16, 1:16} },
+  "E3": { floors: 24, flatsPerFloor: 20, ground: true, prefix: "E3", specialFlats: {0:16, 1:16} },
+  "E4": { floors: 24, flatsPerFloor: 24, ground: true, prefix: "E4", specialFlats: {0:16, 1:16} }
 };
 
 // --- MAINTENANCE DATA STORE (Unchanged structure - uses localStorage) ---
@@ -465,13 +469,17 @@ async function updateTotals(){
   if (!data[month]) await loadFromDB(month);
 
   let total = 0;
+  let grandTotal = 0;
   Object.keys(data[month] || {}).forEach(key => {
+    const amount = (Number(data[month][key]) || 0) * 100;
     if (key.startsWith(currentBlock + "_")) {
-      total += (Number(data[month][key]) || 0) * 100;
+      total += amount;
     }
+    grandTotal += amount;
   });
 
   document.getElementById('totalCollection').textContent = total;
+  document.getElementById('grandTotal').textContent = grandTotal;
 }
 
 function openLogin(){document.getElementById('loginModal').classList.remove('hidden');}
