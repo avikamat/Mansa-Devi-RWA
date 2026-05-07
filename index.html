@@ -922,7 +922,7 @@ function handleUPIPayment(name, flat, floor) {
     const upiUrl = new URL("upi://pay");
     upiUrl.searchParams.set('pa', UPI_ID);
     upiUrl.searchParams.set('pn', UPI_PAYEE_NAME);
-    upiUrl.searchParams.set('am', 100);
+    upiUrl.searchParams.set('am', 200);
     upiUrl.searchParams.set('cu', 'INR');
     upiUrl.searchParams.set('tn', `Maint_${currentBlock}_Flat_${flat}_${monthSelect.value}`);
 
