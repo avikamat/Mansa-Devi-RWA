@@ -455,7 +455,7 @@ async function togglePaid(flat) {
   const key = getFlatKey(flat, currentBlock);
   let current = Number(data[month][key] || 0);
   current = current + 1;
-  if (current > 5) current = 0;
+  if (current > 20) current = 0;
 
   data[month][key] = current;
   try { saveData(); } catch(e){}
